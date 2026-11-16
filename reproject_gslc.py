@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# GSLC workflow adaptation and maintenance: Xin Wang
+# Affiliation: University of Science and Technology of China (USTC), Hefei, China
+# Contact: xinw11@mail.ustc.edu.cn | https://github.com/Xin-Wang-520
+# Attribution and license: AUTHORS.md, UPSTREAM_PROVENANCE.md, LICENSE
 """Export native GSLC phase/LOS and ionosphere products as EPSG:4326 GRD."""
 from __future__ import annotations
 

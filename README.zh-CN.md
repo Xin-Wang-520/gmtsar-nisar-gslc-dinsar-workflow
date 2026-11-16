@@ -2,6 +2,12 @@
 
 [English](README.md) | **简体中文**
 
+**作者与维护者（GSLC 工作流）：** [Xin Wang](https://github.com/Xin-Wang-520)  
+**单位：** 中国科学技术大学（USTC），中国合肥  
+**联系邮箱：** [xinw11@mail.ustc.edu.cn](mailto:xinw11@mail.ustc.edu.cn)
+
+上游方法和代码署名见[作者与致谢](AUTHORS.md#中文说明)。
+
 当前版本 **0.6.5**。本程序读取两景 NISAR GSLC HDF5，完成 A/B 干涉、相干性估计、
 滤波和解缠，再利用 A/B 解缠相位估计电离层，对 A 校正后再次解缠。
 

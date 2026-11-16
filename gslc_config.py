@@ -1,3 +1,7 @@
+# GSLC workflow adaptation and maintenance: Xin Wang
+# Affiliation: University of Science and Technology of China (USTC), Hefei, China
+# Contact: xinw11@mail.ustc.edu.cn | https://github.com/Xin-Wang-520
+# Attribution and license: AUTHORS.md, UPSTREAM_PROVENANCE.md, LICENSE
 """Strict readers for commentable GMTSAR-style GSLC configuration files."""
 from pathlib import Path
 import math

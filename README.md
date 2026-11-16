@@ -2,6 +2,12 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
+**Author and maintainer (GSLC workflow):** [Xin Wang](https://github.com/Xin-Wang-520)  
+**Affiliation:** University of Science and Technology of China (USTC), Hefei, China  
+**Contact:** [xinw11@mail.ustc.edu.cn](mailto:xinw11@mail.ustc.edu.cn)
+
+See [authors and acknowledgments](AUTHORS.md) for upstream method and code credits.
+
 Version **0.6.5**. A standalone, configuration-driven workflow for two NISAR
 GSLC HDF5 acquisitions: frequency A/B interferometry, coherence, filtering,
 unwrapping, A/B ionospheric estimation, and corrected A re-unwrapping.

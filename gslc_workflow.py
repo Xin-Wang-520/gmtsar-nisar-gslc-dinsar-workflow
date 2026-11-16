@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# GSLC workflow adaptation and maintenance: Xin Wang
+# Affiliation: University of Science and Technology of China (USTC), Hefei, China
+# Contact: xinw11@mail.ustc.edu.cn | https://github.com/Xin-Wang-520
+# Attribution and license: AUTHORS.md, UPSTREAM_PROVENANCE.md, LICENSE
 """GSLC LA/LB workflow with six consecutive stages, run1 through run6."""
 import argparse
 import copy
