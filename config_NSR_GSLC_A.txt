@@ -1,0 +1,73 @@
+# Example configuration for p2p_gslc.csh and p2p_gslc.py: NSR_A
+# Use parameter = value; comments start with #. Blank values follow the notes below.
+# Keep parameter names unchanged and list each parameter only once.
+
+########################################################################
+# processing stage
+########################################################################
+# 1-3: validate GSLC inputs; focusing and terrain flattening are already applied.
+# 4: make and filter interferograms; 5: unwrap phase; 6: export longitude/latitude.
+# proc_stage starts here and runs the remaining stages. skip_stage: comma-separated, blank for none.
+proc_stage = 1
+skip_stage = 
+
+########################################################################
+# parameters for input and map grid
+########################################################################
+# gslc_polarization: HH, HV, VH or VV, as available in both products.
+# gslc_region: XMIN/XMAX/YMIN/YMAX in product-CRS metres; blank for the common full extent.
+# gslc_spacing_x/y: output east/north spacing in metres; defaults A=40/40 m, B=120/120 m.
+# Use integer multiples of the native spacing. Clear both values for automatic decimation.
+# gslc_min_valid_fraction: minimum joint valid fraction for filtering and output blocks (0,1].
+gslc_polarization = HH
+gslc_region = 
+gslc_spacing_x = 40
+gslc_spacing_y = 40
+gslc_min_valid_fraction = 0.8
+
+########################################################################
+# parameters for make and filter interferograms
+########################################################################
+# switch_master: 0 uses master as reference; 1 exchanges reference and secondary.
+# Phase convention: angle(reference * conjugate(secondary)).
+# filter_wavelength: Gaussian wavelength in metres; 0 uses block averaging.
+# dec_factor: automatic map-grid decimation multiplier (1, 2 or 4); explicit spacings override it.
+# gslc_goldstein_mode: coherence (adaptive) or fixed; gslc_filter_alpha applies only to fixed mode.
+switch_master = 0
+filter_wavelength = 160
+dec_factor = 2
+gslc_goldstein_mode = coherence
+gslc_filter_alpha = 0.5
+
+########################################################################
+# parameters for unwrap phase
+########################################################################
+# threshold_snaphu: coherence threshold (0-1); 0 skips unwrapping.
+# near_interp: 1 fills solver inputs with nearest reliable phase; final quality mask is restored.
+# mask_water: 1 uses a supplied, matching landmask.grd; no automatic landmask is generated.
+# defomax: discontinuity in cycles; 0 selects smooth costs, positive values select deformation costs.
+# gslc_unwrap_tiles_y/x: tile rows/columns; 0 selects automatically. gslc_unwrap_nproc: workers.
+# gslc_effective_looks: SNAPHU correlation looks; blank uses the provisional nominal block count.
+threshold_snaphu = 0.1
+near_interp = 0
+mask_water = 0
+defomax = 0
+gslc_unwrap_tiles_y = 0
+gslc_unwrap_tiles_x = 0
+gslc_unwrap_nproc = 2
+gslc_effective_looks = 
+
+########################################################################
+# parameters for geocode and figures
+########################################################################
+# threshold_geocode: coherence threshold for geographic phase/LOS; 0 skips geographic export.
+# gslc_plot: 1 draws unshaded GMT PDFs with bottom colorbars; 0 skips figures.
+threshold_geocode = 0.1
+gslc_plot = 1
+
+########################################################################
+# other parameters
+########################################################################
+# Ionospheric correction and phase gradients are outside this compact processor; keep both at 0.
+correct_iono = 0
+compute_phase_gradient = 0

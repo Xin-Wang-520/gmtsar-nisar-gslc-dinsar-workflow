@@ -2,24 +2,192 @@
 
 [English](README.md) | **简体中文**
 
-**作者与维护者（GSLC 工作流）：** [Xin Wang](https://github.com/Xin-Wang-520)  
-**单位：** 中国科学技术大学（USTC），中国合肥  
-**联系邮箱：** [xinw11@mail.ustc.edu.cn](mailto:xinw11@mail.ustc.edu.cn)
+**作者：** Xin Wang，USTC · **邮箱：** [xinw11@mail.ustc.edu.cn](mailto:xinw11@mail.ustc.edu.cn)
 
-上游方法和代码署名见[作者与致谢](AUTHORS.md#中文说明)。
+常规 GSLC 配对处理优先使用 **[p2p_gslc.py](p2p_gslc.py)**，调用方式与 GMTSAR
+的 p2p 习惯相同。每个频段一条命令，完成干涉、相干性、Goldstein 滤波、SNAPHU 解缠、
+LOS、经纬度 GRD 和 GMT 出图。
 
-当前版本 **0.6.5**。本程序读取两景 NISAR GSLC HDF5，完成 A/B 干涉、相干性估计、
-滤波和解缠，再利用 A/B 解缠相位估计电离层，对 A 校正后再次解缠。
+需要**电离层估计和校正后 A 再次解缠**时，继续使用本仓库保留的
+[原 run1–run6 流程](#电离层校正原有流程)（0.6.5）。精简入口负责配对处理，
+原流程负责完整电离层处理。
 
-处理直接使用 GSLC 自带的地图网格和元数据，输入 HDF5 只读，调用已有的
-GMTSAR、GMT、SNAPHU，不修改原 GMTSAR 安装和 RSLC 处理脚本。
+## 安装依赖
+
+安装或激活已有的 SAR 环境，需要：
+
+| 软件 | 要求 |
+| --- | --- |
+| Python | 3.9 及以上 |
+| Python 包 | NumPy、SciPy、h5py、netCDF4、pyproj、rasterio，见 [requirements.txt](requirements.txt) |
+| GMTSAR | 已安装、编译好的 `phasefilt` 程序 |
+| SNAPHU | 2.x，用于解缠 |
+| GMT | 6，用于绘图 |
+| Ghostscript | `gs`，用于 PDF 输出 |
+| Csh | 原来的编号 `.csh` 流程需要 |
+| Poppler | 可选的 `pdftoppm`，用于 PNG 预览 |
+
+进入仓库根目录，在实际处理使用的 Python 环境中执行：
+
+```bash
+python -m pip install -r requirements.txt
+python -c 'import numpy,scipy,h5py,netCDF4,pyproj,rasterio; print("Python dependencies OK")'
+command -v phasefilt snaphu gmt gs
+```
+
+缺少 GMTSAR、SNAPHU、GMT 或 Ghostscript 时，需要另行安装，并将可执行程序目录加入
+`PATH`；`pip` 安装的是 Python 依赖。已经能正常使用的 GMTSAR 环境可以继续使用。
+
+## 推荐方式：p2p_gslc.py
+
+精简入口由三个文件组成：
+
+- [p2p_gslc.py](p2p_gslc.py)
+- [config_NSR_GSLC_A.txt](config_NSR_GSLC_A.txt)
+- [config_NSR_GSLC_B.txt](config_NSR_GSLC_B.txt)
+
+在 `raw/` 放两景 NISAR GSLC `.h5`，也支持软链接；每景包含 A/B 频率数据。
+已展平的 GSLC 输入不需要另备轨道或 DEM，程序只读原始 HDF5。
+
+```text
+python p2p_gslc.py NSR_A|NSR_B master_image aligned_image [configuration_file]
+```
+
+输入 `python p2p_gslc.py` 或 `python p2p_gslc.py --help`，可以查看用法和使用开发数据对
+完整文件名的示例命令。
+
+A/B 分别在独立工作目录中运行。从仓库根目录开始，将下面的 `MASTER.h5` 和
+`SECONDARY.h5` 换成 `raw/` 中的实际文件名。`switch_master = 0` 时，第一景为参考景。
+
+```bash
+mkdir -p raw LA LB
+# 运行前，将两景 GSLC .h5 放进 raw/。
+
+cd LA
+python ../p2p_gslc.py NSR_A ../raw/MASTER.h5 ../raw/SECONDARY.h5 ../config_NSR_GSLC_A.txt
+
+cd ../LB
+python ../p2p_gslc.py NSR_B ../raw/MASTER.h5 ../raw/SECONDARY.h5 ../config_NSR_GSLC_B.txt
+cd ..
+```
+
+输入可用 `.h5` 文件名或文件主名，程序在当前工作目录及其 `raw/` 中查找；也支持明确的文件路径。
+省略配置参数时，读取当前工作目录的 `config_NSR_GSLC_A.txt` 或 `config_NSR_GSLC_B.txt`；
+不存在时，自动生成带英文注释的默认配置，然后继续处理。已有配置和已完成的配对输出受保护。
+
+## 配对配置与输出
+
+精简配置采用 GMTSAR 常见的 `参数名 = 数值`，按处理阶段分块，带英文说明。
+
+| 参数 | A / HH | B / HH |
+| --- | --- | --- |
+| 输出网格间距，东西 × 南北 | **40×40 m** | **120×120 m** |
+| 高斯滤波波长 | **160 m** | **640 m** |
+| Goldstein 模式 | 相干性自适应 | 相干性自适应 |
+| Goldstein 窗口 | 32×32 输出像元 | 32×32 输出像元 |
+| 解缠相干性阈值 | 0.1 | 0.1 |
+| SNAPHU 分块 | 自动 | 自动 |
+| SNAPHU 分块工作进程数 | 2 | 2 |
+
+`gslc_spacing_x/y` 已明确固定输出间距，高斯波长和 `dec_factor` 不再改变该间距。
+将两个间距都留空，才启用自动地图采样。`gslc_region` 的顺序为
+`XMIN/XMAX/YMIN/YMAX`，使用产品投影坐标的米；留空处理整幅共同覆盖范围。
+有效空间分辨率还取决于原始带宽和滤波。
+
+`proc_stage = 1` 执行完整配对处理；阶段 1–3 检查输入，4 做干涉和滤波，5 解缠，6 转经纬度。
+中断后，仅在前序配对产品完整且兼容时用阶段 5 或 6 继续。
+明确重做时，先移动旧解缠/LOS 或 `lonlat/` 输出。
+
+每个工作目录的结果保存在 `intf/YYYYDDD_YYYYDDD/`：
+
+```text
+LA/intf/<pair>/
+LB/intf/<pair>/
+    phase.grd, corr.grd, phasefilt.grd
+    unwrap.grd, conncomp.grd, los.grd
+    display_amp.grd
+    p2p_gslc.json            # 输入和配置信息
+    *.pdf                   # 原生坐标 GMT 图
+    lonlat/*_ll.grd          # WGS 84 经纬度网格
+    lonlat/*_ll.pdf          # 经纬度 GMT 图
+```
+
+GRD 为主要格式，相位单位为 radian。LOS 直接按
+`-波长 / (4*pi) × 解缠相位` 换算，朝卫星为正，不减参考常数；网格单位 m，图上 mm。
+图不加梯度阴影，色标放在下方。
+
+## 电离层校正：原有流程
+
+需要电离层估计、多边形 mask 或校正后 A 再次解缠时，继续使用原 run1–run6 流程。
+它需要自身的 `gslc_project.json` 和 `run.json`，精简配对程序记录的是 `p2p_gslc.json`。
+因此，应单独准备原流程项目；精简配对目录不能直接作为 run5 的续跑输入。
+
+从仓库根目录开始，选择一个新项目目录，把两景数据放入或链接到该项目的 `raw/`：
+
+```bash
+export NISAR_GSLC_PYTHON="$(command -v python)"
+gslc_iono_project="/path/to/iono_project"
+mkdir -p "$gslc_iono_project/raw"
+# 将两景 GSLC .h5 或指向它们的软链接放入这个 raw/。
+
+nohup ./run1-6_gslc_all.csh --project "$gslc_iono_project" > run1-6_gslc_all.log 2>&1 &
+tail -f run1-6_gslc_all.log
+```
+
+总控逐步等待，前一步成功才进入下一步，失败停止。分步日志在项目的 `logs/` 中，
+普通流程最终 A 结果位于 `LA_iono_corrected/`。
+
+| 步骤 | 工作 |
+| --- | --- |
+| run1 | 检查两景，准备 LA/LB 和配置 |
+| run2 | 干涉、高斯加权、降采样、相干性和 Goldstein |
+| run3 | 可选的解缠前质量掩膜预览 |
+| run4 | A/B 解缠、转 LOS、导出经纬度 |
+| run5 | 利用 A/B 解缠相位估计并滤波电离层 |
+| run6 | 校正后 A 再次解缠，输出相位、LOS 和经纬度 |
+
+多边形掩膜继续使用 `run5mask_iono_GSLC_LA_LB.csh` 的模式 1 预览、模式 2 估计，
+然后运行 run6，详见[流程说明](WORKFLOW_GSLC.zh-CN.md)和[服务器说明](SERVER_RUN.zh-CN.md)。
+
+原流程保留 `configs/` 中的配置，准备后使用 `LA/config_GSLC_A.txt`、
+`LB/config_GSLC_B.txt`、`config_IONO.txt`，高斯默认仍为 A=120/B=480 m，
+与精简入口的 `config_NSR_GSLC_A/B.txt` 分别使用。
+电离层滤波波长为 20,000 m，A 在 B 网格上的预滤波波长为 1,000 m。
+
+原流程也可以不用编号 Shell 入口，直接调用 Python：
+
+```bash
+python gslc_workflow.py prepare --project "$gslc_iono_project"
+# 在处理前检查生成的 A/B 和电离层配置。
+python gslc_workflow.py process --project "$gslc_iono_project"
+python gslc_workflow.py preview --project "$gslc_iono_project"
+python gslc_workflow.py unwrap --project "$gslc_iono_project"
+python gslc_workflow.py iono --project "$gslc_iono_project"
+python gslc_workflow.py correct --project "$gslc_iono_project"
+```
+
+同一个项目选择总控或逐步执行其中一种方式；总控另外负责步骤顺序、分步日志和失败停止。
+
+## 流程概览
+
+```mermaid
+flowchart TD
+    INPUT["raw/：两景 NISAR GSLC"]
+    PAIR["推荐：p2p_gslc.py<br/>A/B 分别运行"]
+    PRODUCTS["干涉、相干性、滤波相位<br/>解缠、LOS、经纬度 GRD、GMT PDF"]
+    LEGACY["电离层：独立项目<br/>原 run1 至 run4"]
+    IONO["run5 或 run5mask<br/>A/B 电离层估计"]
+    CORRECT["run6<br/>校正后 A 再次解缠和 LOS"]
+    INPUT --> PAIR --> PRODUCTS
+    INPUT --> LEGACY --> IONO --> CORRECT
+```
 
 ## 结果示例
 
-**2026-10-19 至 2026-10-31** 的 GSLC A/B HH 结果，使用 WGS 84 经纬度坐标。
-点击图片可以查看原图。
+以下是原流程 **2026-10-19 至 2026-10-31** A/B HH 数据对的结果，坐标为 WGS 84 经纬度。
+点击可查看原图。
 
-| A：Goldstein 滤波包裹相位 | B：Goldstein 滤波包裹相位 |
+| A：Goldstein 滤波相位 | B：Goldstein 滤波相位 |
 | --- | --- |
 | [![A 滤波相位](docs/images/a_phase.png)](docs/images/a_phase.png) | [![B 滤波相位](docs/images/b_phase.png)](docs/images/b_phase.png) |
 
@@ -27,185 +195,27 @@ GMTSAR、GMT、SNAPHU，不修改原 GMTSAR 安装和 RSLC 处理脚本。
 | --- | --- |
 | [![A 相干性](docs/images/a_coherence.png)](docs/images/a_coherence.png) | [![校正后 A LOS](docs/images/a_corrected_los.png)](docs/images/a_corrected_los.png) |
 
-原始 A/B 图保留完整有效覆盖区；掩膜分支在电离层估计及校正后 A 结果中剔除了南侧断开的条带。
-下面四幅图依次展示 A/B 输入包裹相位、A 频率电离层估计，以及 A 扣除估计后的包裹相位。
+掩膜分支剔除了南侧断开的条带，下图展示 A/B 输入相位、A 频率电离层估计及 A 扣除估计后的相位。
 
-[![A/B 电离层处理对比](docs/images/ionosphere_comparison.png)](docs/images/ionosphere_comparison.png)
+[![电离层处理对比](docs/images/ionosphere_comparison.png)](docs/images/ionosphere_comparison.png)
 
-这些开发示例存在处理版本和 DEM 版本差异，并保留输入相位零点，用于展示处理输出；
-定量使用前仍需按后文说明验证。
+## 验证与结果解释
 
-## 处理流程
+精简程序已用同一数据对约 40.96×20.48 km 的 HH 小范围验证，A=40×40 m、B=120×120 m，
+测试高斯波长为 120/480 m；检查了与原干涉/滤波引擎的一致性、解缠、LOS、经纬度导出和 GMT PDF。
+这次小范围检查没有测量整幅运行耗时。
 
-```mermaid
-flowchart TD
-    INPUT["raw/：两景 GSLC<br/>每景包含 A/B"]
-    R1["run1：检查元数据<br/>准备 LA/LB 和配置"]
-    R2["run2：复数干涉、高斯加权与降采样<br/>相干性、自适应 Goldstein"]
-    R3["run3：可选的预览<br/>解缠前质量掩膜"]
-    R4["run4：A/B 解缠、直接转 LOS<br/>导出经纬度"]
-    R5["run5：利用 A/B 解缠相位<br/>估计并滤波电离层"]
-    M1["run5mask 模式 1<br/>预览并保存多边形选区"]
-    M2["run5mask 模式 2<br/>按保存的选区估计电离层"]
-    R6["run6：校正后 A 再次解缠<br/>转 LOS、导出经纬度"]
-    OUTPUT["校正后相位和 LOS<br/>原生坐标及经纬度 GRD、GMT PDF"]
-    INPUT --> R1 --> R2 --> R3 --> R4
-    R2 -. "可跳过预览" .-> R4
-    R4 --> R5 --> R6
-    R4 -. "可选的空间掩膜" .-> M1
-    M1 -->|"检查预览"| M2 --> R6
-    R6 --> OUTPUT
-```
+两景的几何、频率、投影网格和展平信息需要兼容。按地图坐标匹配没有完成精密亚像元配准；
+处理或 DEM 版本差异、解缠整周错误、断开区域偏移，需要在定量形变或电离层解释前检查。
+分块解缠的连通域编号仍是块内标签。示例图展示处理输出，不代表已经验证科学精度。
 
-推荐的一键脚本执行普通 run1–run6 路径，包含 run3。多边形 mask 分支在 run4 后手动选择，
-便于先看图再计算。流程图使用 [GitHub 支持的 Mermaid 语法](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams)。
+## 文档与署名
 
-## 环境与输入
-
-- Python **3.9+**，依赖 NumPy、SciPy、h5py、netCDF4、pyproj、rasterio。
-- 已有的 GMTSAR `phasefilt`、SNAPHU **2.x**、GMT **6**、Ghostscript（`gs`）。
-  Shell 入口还需要 `csh`。
-- `pdftoppm` 为可选工具，用于经纬度图的 PNG 预览。
-- `raw/` 中放入且仅放入**两景兼容的 NISAR GSLC `.h5`**，也支持软链接。
-  每景应包含 A/B；当前配置模板使用 **HH** 极化。
-
-克隆或下载仓库后，进入仓库根目录，激活已有 SAR 环境；缺少 Python 依赖时再安装：
-
-```bash
-python -m pip install -r requirements.txt
-python -c 'import numpy,scipy,h5py,netCDF4,pyproj,rasterio; print("Python dependencies OK")'
-command -v csh phasefilt snaphu gmt gs
-export NISAR_GSLC_PYTHON="$(command -v python)"
-
-mkdir -p raw
-# 把两景 GSLC .h5 或指向它们的软链接放入 raw/。
-ls raw/*.h5
-```
-
-成像先后由元数据确定。不指定诊断范围 `--bbox` 时，处理整幅共同地图网格范围，
-无效像元按掩膜剔除。
-
-## 推荐方式：一键运行 run1–run6
-
-新项目先检查 `configs/` 中的模板，再执行：
-
-```bash
-nohup ./run1-6_gslc_all.csh > run1-6_gslc_all.log 2>&1 &
-tail -f run1-6_gslc_all.log
-```
-
-总控逐步等待，前一步成功才运行下一步，失败立即停止。各步完整日志位于
-`logs/all_UTC时间戳_PID/run1.log` 至 `run6.log`。普通流程最终 A 结果在 `LA_iono_corrected/`。
-
-如果想先修改项目配置，可以先准备，再从第二步一键继续：
-
-```bash
-./run1_prepare_GSLC_LA_LB.csh
-# 编辑 LA/config_GSLC_A.txt、LB/config_GSLC_B.txt、config_IONO.txt。
-nohup ./run1-6_gslc_all.csh --from-step 2 > run2-6.log 2>&1 &
-```
-
-对已准备好且输入一致的项目，run1 保留已编辑的配置。已有 run2 结果后，改变采样或前端滤波参数，
-应新建项目重跑。代码与数据分开时使用 `--project /path/to/project`，输入放在该项目的 `raw/`。
-
-## 其他方式：逐步运行
-
-每条命令完成后再执行下一条；准备后可以改配置，解缠后可以检查结果再继续。
-
-```bash
-./run1_prepare_GSLC_LA_LB.csh
-./run2_process_GSLC_LA_LB.csh
-./run3_presnaphu_GSLC_LA_LB.csh
-./run4_unwrap_GSLC_LA_LB.csh
-./run5_iono_GSLC_LA_LB.csh
-./run6_corrected_GSLC_LA.csh
-```
-
-| 步骤 | 工作 |
-| --- | --- |
-| run1 | 读取 `raw/`，检查元数据，建立 LA/LB 和配置 |
-| run2 | 复数干涉、高斯加权、降采样、相干性、自适应 Goldstein |
-| run3 | SNAPHU 前的质量掩膜预览；手动运行时可跳过 |
-| run4 | A/B 解缠、直接转 LOS，生成原生坐标和经纬度结果 |
-| run5 | 组合 A/B 解缠相位并滤波电离层估计 |
-| run6 | 校正 A 后再次解缠，不重复高斯和 Goldstein 滤波 |
-
-## 其他方式：直接调用 Python
-
-编号 `.csh` 只是调用同一 Python 调度程序的入口，**也可以不用这些 Shell 脚本**：
-
-```bash
-python gslc_workflow.py prepare
-# 在这里编辑生成的 LA/LB 和电离层配置。
-python gslc_workflow.py process
-python gslc_workflow.py preview  # 可选
-python gslc_workflow.py unwrap
-python gslc_workflow.py iono
-python gslc_workflow.py correct
-```
-
-两种方式使用相同配置，对应步骤执行相同计算。直接调用时要自己确认上一条成功完成；
-推荐的 `run1-6_gslc_all.csh` 自动控制顺序、保存每步日志，并在失败时停止。
-直接调用使用当前环境的 `python`，仍需要相同的数值处理工具。
-
-## 默认参数
-
-| 参数 | A / HH | B / HH |
-| --- | --- | --- |
-| 输出网格间距，东西 × 南北 | 40 × 40 m | 120 × 120 m |
-| 高斯滤波波长 | 120 m | 480 m |
-| Goldstein 模式 | coherence，相干性自适应 | coherence，相干性自适应 |
-| Goldstein 窗口 | 32 × 32 输出像元 | 32 × 32 输出像元 |
-| 解缠相干性阈值 | 0.1 | 0.1 |
-| SNAPHU 模式 | smooth | smooth |
-| 整幅分块，南北 × 东西 | 4 × 4 | 2 × 2 |
-| 分块重叠，南北/东西 | 512 / 512 输出像元 | 512 / 512 输出像元 |
-| 同时求解的 SNAPHU 块数 | 2 | 2 |
-| 临时有效视数 | 32 | 8 |
-
-电离层滤波波长默认 **20,000 m**，A 匹配到 B 网格后的预滤波波长为 **1,000 m**。
-默认值来自开发时的诊断数据对，用于其他场景前应检查。B 使用较粗网格用于电离层估计；
-**网格间距、高斯波长和有效空间分辨率是不同概念**。
-
-模板在 `configs/`；准备后实际读取 `LA/config_GSLC_A.txt`、`LB/config_GSLC_B.txt`、
-`config_IONO.txt`。改参数和可选多边形 mask 见[详细流程](WORKFLOW_GSLC.zh-CN.md)。
-
-## 输出结果
-
-```text
-raw/                         # 两景输入 GSLC
-LA/intf/<pair>/              # A 网格和图；lonlat/ 存放 *_ll.grd
-LB/intf/<pair>/              # B 网格和图；lonlat/ 存放 *_ll.grd
-iono_correction/            # 电离层估计、校正后 A、lonlat/
-LA_iono_corrected/           # 校正 A 后再次解缠、LOS、lonlat/
-gslc_project.json            # 配对信息和地图范围
-logs/                       # 一键总控生成的分步日志
-```
-
-**GRD 是主要输出格式**。原生网格保留产品 CRS；run4–run6 默认另外输出 WGS 84 经纬度 GRD。
-GeoTIFF 按需导出。相位单位为 radian，LOS 网格单位为 m，图上为 mm。
-直接换算为 `LOS = -波长 / (4*pi) × 解缠相位`，朝卫星为正，默认不选参考区、不减常数，
-因此 LOS 仍继承输入解缠相位的零点。
-
-GMT 图不加梯度阴影，colorbar 在下方。run4 复用 run2 的四张未变化的原生坐标图，
-只新增解缠和 LOS 图，再更新完整 PDF 图集；缺失或过时的图自动补画。
-经纬度图和 run6 改正后图单独绘制。
-
-## 结果解释与验证
-
-- 按 GSLC 地图坐标匹配；振幅配准检查用于诊断，尚未实现自动亚像元配准。
-- 不同处理版本或 flattening DEM 可能残留相位信号。
-- 解缠整周错误和断开区域的相位偏移可能进入 A/B 电离层估计；分块连通域编号仍是块内标签。
-- 流程运行完成不代表电离层场已获科学验证；定量使用前应检查相位连续性和形变是否保留。
-
-## 文档与主程序
-
-- [详细流程与参数](WORKFLOW_GSLC.zh-CN.md) · [English workflow guide](WORKFLOW_GSLC.md)
+- [流程与参数](WORKFLOW_GSLC.zh-CN.md) · [English workflow guide](WORKFLOW_GSLC.md)
 - [服务器运行与恢复](SERVER_RUN.zh-CN.md) · [English server guide](SERVER_RUN.md)
-- `gslc_workflow.py`：分步调度；`make_intf_nsr_gslc.py`：GSLC 读取和干涉；
-  `iono_gslc.py`：电离层估计。
-- `plot_gslc_gmt.py`、`reproject_gslc.py`：绘图和经纬度导出。
-- `gslc_pair.py` / `.csh`：辅助配对预检及整幅处理入口；推荐的六步流程包括电离层校正。
+- [作者与致谢](AUTHORS.md)
+- [来源说明](UPSTREAM_PROVENANCE.md) · [GNU GPL v3](LICENSE)
 
-本 GSLC 适配参考 Xin Wang 的[原 RSLC 工作流](https://github.com/Xin-Wang-520/gmtsar-nisar-dinsar-workflow)。
-来源与署名见 [UPSTREAM_PROVENANCE.md](UPSTREAM_PROVENANCE.md)，许可见 [GNU GPL v3](LICENSE)。
+原流程使用 `gslc_workflow.py`、`make_intf_nsr_gslc.py`、`iono_gslc.py`、
+`plot_gslc_gmt.py`、`reproject_gslc.py`；精简的 `p2p_gslc.py` 不导入这些本地模块。
+本 GSLC 适配参考 Xin Wang 的[原 RSLC 流程](https://github.com/Xin-Wang-520/gmtsar-nisar-dinsar-workflow)。
